@@ -45,7 +45,6 @@ public class PayPalController {
         PayPalType payPal = new PayPalType();
         payPal.setSuccessUrl(returnUrl);
         payPal.setCancelUrl(cancelUrl);
-        payPal.setPayflowcolor("00C0FF");
 
         PaymentType paymentType = new PaymentType();
         paymentType.setPayPal(payPal);

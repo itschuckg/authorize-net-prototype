@@ -97,19 +97,13 @@ public class PaymentService {
                 );
             } else {
                 String errorMsg = "Transaction declined";
-                if (txnResponse.getErrors() != null && !txnResponse.getErrors().isEmpty()) {
-                    errorMsg = txnResponse.getErrors().get(0).getErrorText();
-                }
                 logger.warn("Transaction declined: {}", errorMsg);
                 return new PaymentResponse(false, errorMsg);
             }
         } else {
             String errorMsg = "Payment failed";
-            if (response.getTransactionResponse() != null
-                    && response.getTransactionResponse().getErrors() != null
-                    && !response.getTransactionResponse().getErrors().isEmpty()) {
-                errorMsg = response.getTransactionResponse().getErrors().get(0).getErrorText();
-            } else if (response.getMessages() != null) {
+            if (response.getMessages() != null && response.getMessages().getMessage() != null
+                    && !response.getMessages().getMessage().isEmpty()) {
                 errorMsg = response.getMessages().getMessage().get(0).getText();
             }
             logger.error("Payment error: {}", errorMsg);
