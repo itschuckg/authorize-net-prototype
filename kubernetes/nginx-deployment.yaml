@@ -1,0 +1,148 @@
+---
+# ConfigMap for nginx configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-payment-config
+  namespace: default
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /var/log/nginx/access.log main;
+
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        client_max_body_size 20M;
+
+        # Redirect HTTP to HTTPS
+        server {
+            listen 8080;
+            server_name localhost;
+            location / {
+                return 301 https://$host$request_uri;
+            }
+        }
+
+        # HTTPS Server
+        server {
+            listen 8443 ssl;
+            server_name localhost;
+
+            ssl_certificate /etc/nginx/certs/localhost.crt;
+            ssl_certificate_key /etc/nginx/certs/localhost.key;
+            ssl_protocols TLSv1.2 TLSv1.3;
+            ssl_ciphers HIGH:!aNULL:!MD5;
+            ssl_prefer_server_ciphers on;
+
+            location / {
+                proxy_pass http://host.docker.internal:8081;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Forwarded-Host $server_name;
+                proxy_set_header X-Forwarded-Port $server_port;
+                proxy_http_version 1.1;
+                proxy_set_header Connection "";
+            }
+        }
+    }
+
+---
+# Secret for SSL certificates
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nginx-tls-certs
+  namespace: default
+type: Opaque
+data:
+  localhost.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlEQ1RDQ0FmR2dBd0lCQWdJVUg2eEFnN0ZRcm1XRHV5SzErN3JQdU8xZFFJTXdEUVlKS29aSWh2Y05BUUVMDQpCUUF3RkRFU01CQUdBMVVFQXd3SmJHOWpZV3hvYjNOME1CNFhEVEkyTURNeU5qRTFNVFV3T1ZvWERUSTNNRE15DQpOakUxTVRVd09Wb3dGREVTTUJBR0ExVUVBd3dKYkc5allXeG9iM04wTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGDQpBQU9DQVE4QU1JSUJDZ0tDQVFFQXNwSEZ5SXlpTUttd291NG9SeHEvVGMveHpnRnJXWGU2QmIrNVdVY2VFanNBDQpPQTdDU3lqb3kzNW5PRDZwQWxJeDlyd3ZBczh6S0dmcGZOSTlhTVRrdjluUjdDQ1JGT2JkSHdBU0krZ1UzMFR2DQpBRGlqMy96WGhEWUc4TWllSkhuRzFOSGFpMjYwZW1RTlRGZzEwTXFUcVZUUVNPeHY5RS9RbHRyTGd5dCtJY0lEDQpHcmhIUlFwZytsUXVPTjBQbi9rYlEzN3JZYTh5WE1vWkVaK1RDVUhBL3lRa2l6bmVGYjl6bEk4bjBhdzVCZ1FyDQp2MXFVMyswSFM1R3ZUQ0pzNCtRVGRDMmJEeklEM3IyWlBFUkVvZW1Ed254clVkRnpUMEtlQlN2T2lTQUhSTnpnDQpCM3pqV0JMRjRuY1dkUlVzMTg1MktTT0dVVHpsNzZtUVhVQWxycUdvTHdJREFRQUJvMU13VVRBZEJnTlZIUTRFDQpGZ1FVZEcxakdYbE1QZEYwK0FVc0dYR3BlY0FhVEcwd0h3WURWUjBqQkJnd0ZvQVVkRzFqR1hsTVBkRjArQVVzDQpHWEdwZWNBYVRHMHdEd1lEVlIwVEFRSC9CQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUFhREJ3DQp6bUJQc1JUdlh0WW5rWUg3Qnc1Rmo4dTczTFJ6RXRsOHdyaDFSc3hLZ28xMkhEQzgzaGoyMUZzN1FjWmNVWGxwDQoySExKWlh2dmlRMW1uU1hJZmY2TTVpTVF0NlNBY0lBR0YyL3dSNmVZck9oSGQvM1NaK0gzV3BLMlBuVms1eTNVDQpFTVNUY3BEUWVzNGd5RHBiVnFra25LU1VlYTcrSUNWNUxVSFRsdlIxY0ozS2hScW5BM2dmTzNBc2pRcGFnUkpIDQpZZ0tob1l4cFk2U3BKNDN6eTZWTmF6M3hsYzZENFk2NGJaejhBS0xaZVlsd0lNNUxSTDljV3VIc2I0bjV4Lzc3DQp2ZnBIbElNbW15bGtGMmp6V0pLZ3JzUmU5ZGN2TDNlSFYxKzlseHBXbEV5UkxxVlN5NzZ4ekRxeFN2ZkVXa3NFDQpWMlAwM3JZckdYZWZLeE4wRUE9PQ0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ0K
+  localhost.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tDQpNSUlFdkFJQkFEQU5CZ2txaGtpRzl3MEJBUUVGQUFTQ0JLWXdnZ1NpQWdFQUFvSUJBUUN5a2NYSWpLSXdxYkNpDQo3aWhIR3I5TnovSE9BV3RaZDdvRnY3bFpSeDRTT3dBNERzSkxLT2pMZm1jNFBxa0NVakgydkM4Q3p6TW9aK2w4DQowajFveE9TLzJkSHNJSkVVNXQwZkFCSWo2QlRmUk84QU9LUGYvTmVFTmdid3lKNGtlY2JVMGRxTGJyUjZaQTFNDQpXRFhReXBPcFZOQkk3Ry8wVDlDVzJzdURLMzRod2dNYXVFZEZDbUQ2VkM0NDNRK2YrUnREZnV0aHJ6SmN5aGtSDQpuNU1FUGSER0pDU0xPZDRWdjNPVWp5ZlJyRGtHQkN1L1dwVGY3UWRMa2E5TUltemo1Qk4wTFpzUE5nUGV2Wms4DQpSRVNoNllQQ2ZHdFIwWE5QUXA0Rks4NkpJQWRFM09BSGZPTllFc1hpZHhaMUZTelh6bllwSTRaUlBPWHZxWkJkDQpRQ1d1b2FndkFnTUJBQUVDZ2dFQUR4elVNdGxvSHBzMTVrd21uNEh0ZjkzaDlvL2JNSHY0QlNXSlA3dUxtWHBoDQoxZHkxNTl1Qi9EcnA3SEl0SnBPalErRUFUNG9PcDlSSGgvZFpHQ1ZWd01Ea0NjcGx6UEdPOUVFeXg5UXI5QXRtDQorTXRTWHpJTVlWV2JOOFNhMGJaMnMrdEF4ajByekJIc3FESHMrQXMwL1FjL0MzVHJNcStRbFR2V0xuYy9XUWJvDQpuVVZCV2lmZDlpY291Y1FiU2lBTUh3dGkzNDJuZUtNK0oxYjdZZndiT1Fvay9zMlBOTnF1dVZveVJFTDljYW9PDQpnWitWZndDNzdDM01jQ2YxUmRVZGdxTVFoVE5ZdXE5V0NxTWN3SjRzTjFPNndzMUg4MU5PSEswZGJWWFRaNldqDQpQZWgwRlB5YjNzK2FDU3BpTHR2WVpPcG5iSFFoZGJib2tMWS9wdE94UlFLQmdRRHBVZTVQRFVFclZNTHVXYWhWDQp6U1lWSEJ1MnRlNFpobENuK3hvSGJ0Q2pqNTNMQXI1cTdOZmN0aS9ZRmxGdnI4bm42MDN3M05pTkhxbStWY1FzDQpPcnd0UFdMMDdaOEJFRnlVUkpZZkNQYm04NzM3bWRLWCs1T3hTMmUyYlNTTmtOMGhaWGw1bkdyanM4MGFFcjZDDQpVYVFyU3BCS3RKNkhOK21DUjM3N1g1ejgxUUtCZ1FERDdXVmtSWHZrNWJITFp4SldjTXhSOWFlb1lvY2FFZzBJDQpZWXB0Y1QreU83Nm9VcElFOGZCYTd6ai9ReHZBZzVraEVLdU1NU0hkbnZJRlVhVWFxVjVraldZQURXMGE4YU40DQo5UE16UDYvYlRVSUZXa0NYM2JqSUlCclFxYzVCV1UxUVMvS292TmpXZG1uaUllN0JMTlNYOWE5bEhLYVc4U1o3DQowRURjS2hRQzh3S0JnQ1BLT3BrTHVuUndJeHEyekJpbFNITXloWm5JWElhejBNbUR2aUZud1Q5bHQxbTl5UUhUDQo1T1RwV1h0M0tQVE43VlhUQlhpdUY5WEYzMW5nQkNDWXZlYmVwTUJYZHUyTjJmV3djNnE5RUVxckZ2aHlSeGlqDQpNYXVmbW9Ba1M5Z2ZZWnhPMll4ckR3Wnd2VVNEblkrV0FHM1htVHlzYWlqcHpicjdScUkrcjNFbEFvR0FRM3NFDQpMT0R4cHdpbGo5VFVNQWx4bGRqeUFjRE5uMkVRTkE3RVNxVnl0c1IxQ2l4R05vWE5yc1F0OFZ6L3RmS2RUeElhDQp3NUk0ZzhnMnV6WS9rMHM2UTQrZnplelI0ekhPaDk1MTFQVGVjTDNQTzJDMlZwZjdDSkptS2ZBU0pkZklGUnZUDQpXK0tQSEc1MFVYbzJiVG92anBjRDdlTk1UVGlKZEtOcGMycmFzWmtDZ1lBMGFjUDBHZzVxeFlqaXJwVzRhTTliDQphOE1haTM5bVNyWTl0SzBlMGV2aUo2enFQekRXUzBjemwwNlZWMWRGU2s0TmE3Wjc2TTlLVGlTaVFaS0xXU0J2DQpXQ2dETStpN2paMjdvYUk5dzc3dmtlUlpIbkVaVlQxNmFXMnRPK1BuMStPVXl1YTRwOWpSaFZYQW1JK0FVQ09RDQpVTGdWNEhKc1RrQVIxblhITms5MStnPT0NCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0NCg==
+
+---
+# Deployment for nginx
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-payment-gateway
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-payment
+  template:
+    metadata:
+      labels:
+        app: nginx-payment
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: tls-certs
+          mountPath: /etc/nginx/certs
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-payment-config
+      - name: tls-certs
+        secret:
+          secretName: nginx-tls-certs
+
+---
+# Service to expose nginx
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-payment-service
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: nginx-payment
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    nodePort: 30080
+  - name: https
+    port: 8443
+    targetPort: 8443
+    nodePort: 30443
