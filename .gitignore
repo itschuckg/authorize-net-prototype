@@ -1,0 +1,30 @@
+# Build
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+nbproject/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven
+*.log
+dependency-reduced-pom.xml
+
+# Env / Secrets
+.env
+*.env
+application-local.properties

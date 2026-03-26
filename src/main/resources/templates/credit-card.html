@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Card Payment</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="header">
+    <h1>Credit Card Payment</h1>
+    <a href="/">&larr; Back to Home</a>
+</div>
+
+<div class="container">
+    <div class="pay-section">
+        <h2>Pay with Credit Card</h2>
+
+        <div class="amount-display">
+            <div class="label">Amount</div>
+            <div class="value">$25.00</div>
+        </div>
+
+        <div id="payment-status" class="alert"></div>
+        <div id="spinner" class="spinner"></div>
+
+        <!-- Custom Credit Card Form — card data never touches our server -->
+        <form id="credit-card-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="firstName">First Name</label>
+                    <input type="text" id="firstName" placeholder="John" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name</label>
+                    <input type="text" id="lastName" placeholder="Doe" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="cardNumber">Card Number</label>
+                <input type="text" id="cardNumber" placeholder="4111 1111 1111 1111"
+                       maxlength="19" autocomplete="cc-number" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="expMonth">Expiration Month</label>
+                    <input type="text" id="expMonth" placeholder="MM" maxlength="2" required>
+                </div>
+                <div class="form-group">
+                    <label for="expYear">Expiration Year</label>
+                    <input type="text" id="expYear" placeholder="YYYY" maxlength="4" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="cvv">CVV</label>
+                <input type="text" id="cvv" placeholder="123" maxlength="4" autocomplete="cc-csc" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email (optional)</label>
+                <input type="email" id="email" placeholder="john@example.com">
+            </div>
+
+            <button type="submit" id="pay-btn" class="btn btn-primary">
+                Pay $25.00
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Accept.js — loaded from Authorize.Net (sandbox or production) -->
+<script th:src="${acceptJsUrl}"></script>
+<script th:src="@{/js/payment-common.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const API_LOGIN_ID = /*[[${apiLoginId}]]*/ '';
+    const CLIENT_KEY   = /*[[${clientKey}]]*/ '';
+    const AMOUNT       = 25.00;
+
+    // Format card number with spaces
+    document.getElementById('cardNumber').addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+        e.target.value = value.replace(/(.{4})/g, '$1 ').trim();
+    });
+
+    document.getElementById('credit-card-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        PaymentCommon.hideStatus('payment-status');
+        PaymentCommon.showSpinner();
+        PaymentCommon.disableButton('pay-btn');
+
+        // Build the secure data object for Accept.js
+        var secureData = {
+            authData: {
+                apiLoginID: API_LOGIN_ID,
+                clientKey: CLIENT_KEY
+            },
+            cardData: {
+                cardNumber: document.getElementById('cardNumber').value.replace(/\s/g, ''),
+                month: document.getElementById('expMonth').value,
+                year: document.getElementById('expYear').value,
+                cardCode: document.getElementById('cvv').value
+            }
+        };
+
+        // Send card data to Authorize.Net for tokenization (Accept.js)
+        Accept.dispatchData(secureData, responseHandler);
+    });
+
+    function responseHandler(response) {
+        if (response.messages.resultCode === 'Error') {
+            var errorMsg = response.messages.message.map(function(m) {
+                return m.text;
+            }).join(', ');
+            PaymentCommon.hideSpinner();
+            PaymentCommon.enableButton('pay-btn');
+            PaymentCommon.showStatus('payment-status', errorMsg, 'error');
+            return;
+        }
+
+        // Got opaque data — send to our server
+        var opaqueData = response.opaqueData;
+        var billingInfo = {
+            firstName: document.getElementById('firstName').value,
+            lastName: document.getElementById('lastName').value,
+            email: document.getElementById('email').value
+        };
+
+        PaymentCommon.processPayment(opaqueData, AMOUNT, 'CREDIT_CARD', billingInfo)
+            .then(function(result) {
+                PaymentCommon.hideSpinner();
+                if (result.success) {
+                    PaymentCommon.redirectToResult(true, result.transactionId, result.message);
+                } else {
+                    PaymentCommon.enableButton('pay-btn');
+                    PaymentCommon.showStatus('payment-status', result.message || 'Payment failed', 'error');
+                }
+            })
+            .catch(function(err) {
+                PaymentCommon.hideSpinner();
+                PaymentCommon.enableButton('pay-btn');
+                PaymentCommon.showStatus('payment-status', 'Network error. Please try again.', 'error');
+            });
+    }
+    /*]]>*/
+</script>
+
+</body>
+</html>

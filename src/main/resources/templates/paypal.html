@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayPal Payment</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="header">
+    <h1>PayPal</h1>
+    <a href="/">&larr; Back to Home</a>
+</div>
+
+<div class="container">
+    <div class="pay-section">
+        <h2>Pay with PayPal</h2>
+
+        <div class="amount-display">
+            <div class="label">Amount</div>
+            <div class="value">$25.00</div>
+        </div>
+
+        <div id="payment-status" class="alert"></div>
+        <div id="spinner" class="spinner"></div>
+
+        <div class="alert alert-info">
+            <strong>How it works:</strong>
+            <ol style="margin-top:0.5rem; padding-left:1.2rem;">
+                <li>Click "Pay with PayPal" below</li>
+                <li>You'll be redirected to PayPal to authorize the payment</li>
+                <li>After authorization, you'll return here for confirmation</li>
+            </ol>
+            <br>
+            <strong>Requirements:</strong>
+            <ul style="padding-left:1.2rem;">
+                <li>Authorize.Net merchant account with PayPal enabled</li>
+                <li>PayPal Express Checkout configured in Authorize.Net</li>
+            </ul>
+        </div>
+
+        <form id="paypal-form" style="margin-top:1.5rem;">
+            <div class="form-group">
+                <label for="email">Email (optional)</label>
+                <input type="email" id="email" placeholder="your@email.com">
+            </div>
+
+            <button type="submit" id="paypal-btn" class="btn btn-paypal">
+                Pay with PayPal — $25.00
+            </button>
+        </form>
+
+        <!-- Return handler for when user comes back from PayPal -->
+        <div id="paypal-return" style="display:none;">
+            <div class="alert alert-info">
+                Processing your PayPal payment...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:src="${acceptJsUrl}"></script>
+<script th:src="@{/js/payment-common.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const API_LOGIN_ID = /*[[${apiLoginId}]]*/ '';
+    const CLIENT_KEY   = /*[[${clientKey}]]*/ '';
+    const AMOUNT       = 25.00;
+
+    // Check if returning from PayPal authorization
+    document.addEventListener('DOMContentLoaded', function() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var payerID = urlParams.get('PayerID');
+        var token = urlParams.get('token');
+
+        if (payerID && token) {
+            // User returned from PayPal — complete the transaction
+            document.getElementById('paypal-form').style.display = 'none';
+            document.getElementById('paypal-return').style.display = 'block';
+            completePayPalPayment(payerID, token);
+        }
+    });
+
+    document.getElementById('paypal-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        initiatePayPal();
+    });
+
+    function initiatePayPal() {
+        PaymentCommon.showSpinner();
+        PaymentCommon.disableButton('paypal-btn');
+
+        // Step 1: Create an Authorization & Capture transaction with PayPal
+        // via Authorize.Net's API. This returns a redirect URL to PayPal.
+        fetch('/api/payment/paypal/initiate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount: AMOUNT,
+                returnUrl: window.location.origin + '/pay/paypal?step=return',
+                cancelUrl: window.location.origin + '/pay/paypal?step=cancel'
+            })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            PaymentCommon.hideSpinner();
+            if (data.redirectUrl) {
+                // Redirect user to PayPal for authorization
+                window.location.href = data.redirectUrl;
+            } else {
+                PaymentCommon.enableButton('paypal-btn');
+                PaymentCommon.showStatus('payment-status',
+                    data.message || 'Failed to initiate PayPal', 'error');
+            }
+        })
+        .catch(function(err) {
+            PaymentCommon.hideSpinner();
+            PaymentCommon.enableButton('paypal-btn');
+            PaymentCommon.showStatus('payment-status', 'Network error', 'error');
+        });
+    }
+
+    function completePayPalPayment(payerID, token) {
+        PaymentCommon.showSpinner();
+
+        fetch('/api/payment/paypal/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                payerID: payerID,
+                token: token,
+                amount: AMOUNT
+            })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(result) {
+            PaymentCommon.hideSpinner();
+            if (result.success) {
+                PaymentCommon.redirectToResult(true, result.transactionId, result.message);
+            } else {
+                PaymentCommon.showStatus('payment-status',
+                    result.message || 'PayPal payment failed', 'error');
+            }
+        })
+        .catch(function(err) {
+            PaymentCommon.hideSpinner();
+            PaymentCommon.showStatus('payment-status', 'Network error', 'error');
+        });
+    }
+    /*]]>*/
+</script>
+
+</body>
+</html>

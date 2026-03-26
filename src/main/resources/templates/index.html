@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize.Net Payment Prototype</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="header">
+    <h1>Authorize.Net Payment Prototype</h1>
+    <span class="sandbox-badge">Sandbox Mode</span>
+</div>
+
+<div class="container">
+    <h2 style="text-align:center; margin-bottom:0.5rem;">Choose a Payment Method</h2>
+    <p style="text-align:center; color:#666; font-size:0.9rem;">
+        Powered by Accept.js &mdash; all payment data is tokenized client-side
+    </p>
+
+    <div class="payment-grid">
+
+        <a href="/pay/credit-card" class="payment-card">
+            <div class="icon">&#128179;</div>
+            <h3>Credit Card</h3>
+            <p>Custom form with Accept.js tokenization</p>
+        </a>
+
+        <a href="/pay/apple-pay" class="payment-card">
+            <div class="icon">&#63743;</div>
+            <h3>Apple Pay</h3>
+            <p>Native Apple Pay via Accept.js</p>
+        </a>
+
+        <a href="/pay/google-pay" class="payment-card">
+            <div class="icon">&#128722;</div>
+            <h3>Google Pay</h3>
+            <p>Google Pay button integration</p>
+        </a>
+
+        <a href="/pay/paypal" class="payment-card">
+            <div class="icon">&#128176;</div>
+            <h3>PayPal</h3>
+            <p>PayPal checkout via Authorize.Net</p>
+        </a>
+
+    </div>
+</div>
+
+</body>
+</html>

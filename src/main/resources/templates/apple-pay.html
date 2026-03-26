@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Pay</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        apple-pay-button {
+            --apple-pay-button-width: 100%;
+            --apple-pay-button-height: 48px;
+            --apple-pay-button-border-radius: 8px;
+            --apple-pay-button-padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Apple Pay</h1>
+    <a href="/">&larr; Back to Home</a>
+</div>
+
+<div class="container">
+    <div class="pay-section">
+        <h2>Pay with Apple Pay</h2>
+
+        <div class="amount-display">
+            <div class="label">Amount</div>
+            <div class="value">$25.00</div>
+        </div>
+
+        <div id="payment-status" class="alert"></div>
+        <div id="spinner" class="spinner"></div>
+
+        <div class="alert alert-info" id="apple-pay-info">
+            <strong>Note:</strong> Apple Pay requires:
+            <ul style="margin-top:0.5rem; padding-left:1.2rem;">
+                <li>Safari browser on macOS or iOS</li>
+                <li>A device with Apple Pay configured</li>
+                <li>HTTPS with a valid domain verification</li>
+                <li>Authorize.Net Apple Pay enabled on your merchant account</li>
+            </ul>
+        </div>
+
+        <div id="apple-pay-container" style="margin-top:1rem;">
+            <!-- Apple Pay button renders here if supported -->
+        </div>
+
+        <div id="not-supported" style="display:none;">
+            <div class="alert alert-error">
+                Apple Pay is not available on this device/browser. Please use Safari on an Apple device with Apple Pay configured.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:src="${acceptJsUrl}"></script>
+<script th:src="@{/js/payment-common.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const API_LOGIN_ID = /*[[${apiLoginId}]]*/ '';
+    const CLIENT_KEY   = /*[[${clientKey}]]*/ '';
+    const AMOUNT       = 25.00;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if Apple Pay is available
+        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+            setupApplePay();
+        } else {
+            document.getElementById('not-supported').style.display = 'block';
+        }
+    });
+
+    function setupApplePay() {
+        var container = document.getElementById('apple-pay-container');
+        var button = document.createElement('apple-pay-button');
+        button.setAttribute('buttonstyle', 'black');
+        button.setAttribute('type', 'pay');
+        button.setAttribute('locale', 'en');
+        button.addEventListener('click', onApplePayClicked);
+        container.appendChild(button);
+    }
+
+    function onApplePayClicked() {
+        var paymentRequest = {
+            countryCode: 'US',
+            currencyCode: 'USD',
+            total: {
+                label: 'Authorize.Net Prototype',
+                amount: AMOUNT.toFixed(2)
+            },
+            supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+            merchantCapabilities: ['supports3DS']
+        };
+
+        var session = new ApplePaySession(3, paymentRequest);
+
+        // Merchant validation — in production, your server validates with Apple
+        session.onvalidatemerchant = function(event) {
+            // Call your backend to get the merchant session from Apple
+            fetch('/api/payment/apple-pay/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ validationURL: event.validationURL })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(merchantSession) {
+                session.completeMerchantValidation(merchantSession);
+            })
+            .catch(function(err) {
+                console.error('Merchant validation failed:', err);
+                session.abort();
+            });
+        };
+
+        // Payment authorized — tokenize via Accept.js
+        session.onpaymentauthorized = function(event) {
+            PaymentCommon.showSpinner();
+            var token = event.payment.token;
+
+            // The Apple Pay token is sent to Authorize.Net via Accept.js
+            // to get opaque payment data
+            var opaqueData = {
+                dataDescriptor: 'COMMON.APPLE.INAPP.PAYMENT',
+                dataValue: btoa(JSON.stringify(token.paymentData))
+            };
+
+            PaymentCommon.processPayment(opaqueData, AMOUNT, 'APPLE_PAY', {})
+                .then(function(result) {
+                    PaymentCommon.hideSpinner();
+                    if (result.success) {
+                        session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                        PaymentCommon.redirectToResult(true, result.transactionId, result.message);
+                    } else {
+                        session.completePayment(ApplePaySession.STATUS_FAILURE);
+                        PaymentCommon.showStatus('payment-status', result.message || 'Payment failed', 'error');
+                    }
+                })
+                .catch(function(err) {
+                    PaymentCommon.hideSpinner();
+                    session.completePayment(ApplePaySession.STATUS_FAILURE);
+                    PaymentCommon.showStatus('payment-status', 'Network error', 'error');
+                });
+        };
+
+        session.oncancel = function() {
+            PaymentCommon.showStatus('payment-status', 'Payment cancelled', 'info');
+        };
+
+        session.begin();
+    }
+    /*]]>*/
+</script>
+
+</body>
+</html>

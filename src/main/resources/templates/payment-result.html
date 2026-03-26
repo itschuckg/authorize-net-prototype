@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Result</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="header">
+    <h1>Payment Result</h1>
+    <a href="/">&larr; Back to Home</a>
+</div>
+
+<div class="container">
+    <div class="pay-section">
+        <div class="result-box" id="result-box">
+            <!-- Populated by JS from query params -->
+        </div>
+        <div style="text-align:center; margin-top:1.5rem;">
+            <a href="/" class="btn btn-primary" style="display:inline-block; width:auto; padding:0.7rem 2rem;">
+                Make Another Payment
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var params = new URLSearchParams(window.location.search);
+        var success = params.get('success') === 'true';
+        var transactionId = params.get('transactionId') || '';
+        var message = params.get('message') || '';
+
+        var box = document.getElementById('result-box');
+
+        if (success) {
+            box.innerHTML =
+                '<div class="icon" style="color:#4caf50;">&#10004;</div>' +
+                '<h2>Payment Successful!</h2>' +
+                '<p>' + escapeHtml(message) + '</p>' +
+                (transactionId ? '<div class="txn-id">Transaction ID: ' + escapeHtml(transactionId) + '</div>' : '');
+        } else {
+            box.innerHTML =
+                '<div class="icon" style="color:#f44336;">&#10008;</div>' +
+                '<h2>Payment Failed</h2>' +
+                '<p>' + escapeHtml(message || 'An error occurred during payment processing.') + '</p>';
+        }
+    });
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+</script>
+
+</body>
+</html>
