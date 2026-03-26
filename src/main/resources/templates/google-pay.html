@@ -158,10 +158,10 @@
 
         var paymentToken = paymentData.paymentMethodData.tokenizationData.token;
 
-        // The Google Pay token is sent to Authorize.Net as opaque data
+        // The Google Pay token is sent to Authorize.Net as opaque data (do NOT base64 encode)
         var opaqueData = {
             dataDescriptor: 'COMMON.GOOGLE.INAPP.PAYMENT',
-            dataValue: btoa(paymentToken)
+            dataValue: paymentToken
         };
 
         PaymentCommon.processPayment(opaqueData, AMOUNT, 'GOOGLE_PAY', {})

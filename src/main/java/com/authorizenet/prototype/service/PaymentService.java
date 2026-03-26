@@ -105,6 +105,10 @@ public class PaymentService {
             if (response.getMessages() != null && response.getMessages().getMessage() != null
                     && !response.getMessages().getMessage().isEmpty()) {
                 errorMsg = response.getMessages().getMessage().get(0).getText();
+                // Log all error messages
+                response.getMessages().getMessage().forEach(msg ->
+                    logger.error("Authorize.Net error: Code={}, Text={}", msg.getCode(), msg.getText())
+                );
             }
             logger.error("Payment error: {}", errorMsg);
             return new PaymentResponse(false, errorMsg);
